@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  COADMIN
+  USER
+}
+
+enum TokenType {
+  REFRESH
+  FCM
+  OTHER
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_PROCESS
+  OBJECTION
+  REGISTERED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum UpdateType {
+  STATUS_UPDATE
+  NOTE
+  FEE_REQUEST
+}
+
+enum AudienceType {
+  ALL
+  SPECIFIC
+  ROLE_BASED
+}
+
+model User {
+  id             String                @id @default(uuid()) @db.Uuid
+  fullName       String
+  email          String               @unique
+  phone          String               @unique
+  dob            DateTime             // Assuming it's a date of birth
+  gender         String      
+  role           Role                 @default(USER)
+  applications   TrademarkApplication[]
+  payments       Payment[]
+  tokens         Token[]
+  updates        ApplicationUpdate[]  @relation("UserUpdates")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model Token {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @db.Uuid
+  token     String     @unique
+  type      TokenType
+  role      Role
+  expiredAt DateTime
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id])
+}
+
+model TrademarkApplication {
+  id                     String                @id @default(uuid()) @db.Uuid
+  userId                 String                @db.Uuid
+  user                   User                  @relation(fields: [userId], references: [id])
+  markName               String
+  classCode              String?
+  applicantName          String
+  status                 ApplicationStatus     @default(SUBMITTED)
+  objectionReason        String?
+  objectionFeeRequired   Boolean               @default(false)
+  amountPaid             Decimal               @default(0.0)
+  payments               Payment[]
+  updates                ApplicationUpdate[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+}
+
+model PaymentMethod {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Payment {
+  id                     String                @id @default(uuid()) @db.Uuid
+  userId                 String                @db.Uuid
+  user                   User                  @relation(fields: [userId], references: [id])
+  applicationId          String                @db.Uuid
+  application            TrademarkApplication  @relation(fields: [applicationId], references: [id])
+  amount                 Decimal
+  paymentMethod          String
+  paymentGatewayResponse Json?
+  purpose                String
+  status                 PaymentStatus         @default(PENDING)
+  transactionId          String                @unique
+  parentTransactionId    String?               @db.Uuid
+  paymentDate            DateTime              @default(now())
+  expiresAt              DateTime?
+  parentTransaction      Payment?              @relation("RefundRelation", fields: [parentTransactionId], references: [id])
+  refunds                Payment[]             @relation("RefundRelation")
+}
+
+model ApplicationUpdate {
+  id             String                @id @default(uuid()) @db.Uuid
+  applicationId  String                @db.Uuid
+  application    TrademarkApplication  @relation(fields: [applicationId], references: [id])
+  updatedById    String                @db.Uuid
+  updatedBy      User                  @relation("UserUpdates", fields: [updatedById], references: [id])
+  updateType     UpdateType
+  message        String
+  createdAt      DateTime              @default(now())
+}
+
+model Notification {
+  id               String               @id @default(uuid()) @db.Uuid
+  title            String
+  body             String
+  role             Role
+  audienceType     AudienceType
+  notificationType String               @default("general")
+  clickAction      String               @default("")
+  createdAt        DateTime             @default(now())
+  reads            NotificationRead[]
+}
+
+model NotificationRead {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @db.Uuid
+  userId         String       @db.Uuid
+  isRead         Boolean      @default(false)
+  notification   Notification @relation(fields: [notificationId], references: [id])
+}
+
