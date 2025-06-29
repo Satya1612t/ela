@@ -52,19 +52,25 @@ enum AudienceType {
 }
 
 model User {
-  id             String                @id @default(uuid()) @db.Uuid
-  fullName       String
-  email          String               @unique
-  phone          String               @unique
-  dob            DateTime             // Assuming it's a date of birth
-  gender         String      
-  role           Role                 @default(USER)
-  applications   TrademarkApplication[]
-  payments       Payment[]
-  tokens         Token[]
-  updates        ApplicationUpdate[]  @relation("UserUpdates")
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id              String               @id @default(uuid()) @db.Uuid
+  uid             String?              @unique
+  fullName        String
+  email           String               @unique
+  phone           String               @unique
+  dob             DateTime?             // Assuming it's a date of birth
+  gender          String?   
+  role            Role                 @default(USER)
+  termsAccepted   Boolean              @default(false)
+  termsAcceptedAt DateTime?      
+  emailVerified   Boolean              @default(false)
+  lastLogin       DateTime?      
+  loginAttempts   Int                  @default(0)
+  applications    TrademarkApplication[]
+  payments        Payment[]
+  tokens          Token[]
+  updates         ApplicationUpdate[]  @relation("UserUpdates")
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 }
 
 model Token {

@@ -1,7 +1,7 @@
 {
   "name": "endeavourlawassociates",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Trademark Filing application",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
@@ -11,7 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Bytebuster Technologies",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
@@ -31,6 +31,7 @@
     "express": "^5.1.0",
     "firebase-admin": "^13.4.0",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
     "winston": "^3.17.0"
   }
 }
