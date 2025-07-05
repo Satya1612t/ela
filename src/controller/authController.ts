@@ -4,6 +4,7 @@ import { decryptRSA, encryptRSA } from "../config/encryption";
 import { firebaseAdmin, verifyFirebaseToken } from "../config/firebase";
 import { formatToIndianNumber } from "../utils/lib";
 import JWT from 'jsonwebtoken'
+import { AuthPayload, AuthRequest } from "../types/custom";
 
 // -- Admin Specifice Routes
 //Create Admin Seed
@@ -110,7 +111,7 @@ export const localhost = async (req: Request, res: Response): Promise<Response |
     }
 }
 
-
+// Admin Related
 export const validateAdmin = async (req: Request, res: Response): Promise<Response | void> => {
     const authHeader = req.headers.authorization;
     const firebaseToken = authHeader?.split(' ')[1];
@@ -256,7 +257,7 @@ export const validateAdmin = async (req: Request, res: Response): Promise<Respon
 };
 
 
-// Dsitributor Related 
+// User Related 
 export const validateUser = async (req: Request, res: Response): Promise<Response | void> => {
     const authHeader = req.headers.authorization;
     const firebaseToken = authHeader?.split(' ')[1];
@@ -397,4 +398,188 @@ export const validateUser = async (req: Request, res: Response): Promise<Respons
     } catch (err: any) {
         return res.status(401).json({ error: err.message });
     }
+};
+
+// Validate Session
+export const authSession = async (req: Request, res: Response): Promise<Response | void> => {
+  const user = (req as AuthRequest)?.auth;
+
+  if (!user || !user.id || !user.role) {
+    return res.status(401).json({
+      success: false,
+      error: "Invalid session or token payload",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Verified",
+    user: {
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      name: user.name
+    },
+  });
+};
+
+
+// Logging Out
+export const logout = async (req: Request, res: Response): Promise<Response | void> => {
+  try {
+    // Step 1: Clear cookies
+    res.clearCookie("idToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    // Step 2: Get userId or any identifier from the authenticated user (e.g., from the JWT token)
+    const userId = (req as AuthRequest)?.auth?.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Account ID not found." });
+    }
+
+    // Step 3: If no refresh token is present in the cookies, delete the refresh token based on userId
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      // Delete refresh token from the database using userId
+      await prisma.token.deleteMany({
+        where: {
+          userId: userId, // Use userId to identify the token to delete
+        },
+      });
+    } else {
+      // If refresh token is present in the cookies, delete the token using its value
+      await prisma.token.deleteMany({
+        where: {
+          token: refreshToken,
+        },
+      });
+    }
+
+    return res.status(200).json({ message: "Logged out successfully." });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+//Refresh Session
+export const refreshSession = async (req: Request, res: Response): Promise<Response | void> => {
+  const oldRefreshToken = req.cookies?.refreshToken;
+
+  if (!oldRefreshToken) {
+    return res.status(401).json({ success: false, error: "Refresh token missing" });
+  }
+
+  try {
+    // Step 1: Verify old refresh token
+    const decoded = JWT.verify(oldRefreshToken, process.env.JWT_REFRESH_SECRET!) as { data: string };
+    if (!decoded?.data) {
+      return res.status(401).json({ success: false, error: "Invalid token payload" });
+    }
+
+    const payload = decryptRSA(decoded.data) as AuthPayload;
+
+    // Step 2: Find token in DB
+    const existingToken = await prisma.token.findUnique({
+      where: { token: oldRefreshToken },
+      include: { user: true },
+    });
+
+
+    if (!existingToken || new Date(existingToken.expiredAt) < new Date()) {
+      return res.status(401).json({ success: false, error: "Refresh token is invalid or expired" });
+    }
+
+    if (payload.id !== existingToken?.userId) {
+      return res.status(401).json({ success: false, error: "Token account mismatch" });
+    }
+    // Step 3: Rotate tokens – generate new access and refresh tokens
+    const jwtPayload = {
+      domain: 'www.nexashopping.in',
+      id: existingToken.userId,
+      sub: existingToken.user.uid,
+      phone: existingToken.user.phone,
+      email: existingToken.user.email,
+      name: existingToken.user.fullName,
+      role: existingToken.role,
+    };
+
+    const encryptedPayload = encryptRSA(jwtPayload);
+
+    const newIdToken = JWT.sign({ data: encryptedPayload }, process.env.JWT_SECRET!, {
+      algorithm: 'HS256',
+      expiresIn: '1d',
+    });
+
+    const newRefreshToken = JWT.sign({ data: encryptedPayload }, process.env.JWT_REFRESH_SECRET!, {
+      algorithm: 'HS256',
+      expiresIn: '7d',
+    });
+
+    const expiredAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    // Step 4: Transaction to delete old token and insert new one
+    await prisma.$transaction([
+      prisma.token.delete({
+        where: { token: oldRefreshToken },
+      }),
+      prisma.token.create({
+        data: {
+          userId: existingToken.userId,
+          token: newRefreshToken,
+          role: existingToken.role,
+          type: "REFRESH",
+          expiredAt,
+        },
+      }),
+    ]);
+
+    // Step 5: Set cookies
+    res.cookie("idToken", newIdToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Step 6: Return response
+    return res.status(200).json({
+      success: true,
+      message: "Session refreshed successfully",
+      user: {
+        name: existingToken.user.fullName,
+        phone: existingToken.user.phone,
+        email: existingToken.user.email,
+        role: existingToken.role,
+      },
+    });
+
+  } catch (err: any) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ success: false, error: "Refresh token expired. Please login again." });
+    }
+    console.error("Refresh session error:", err.message);
+    return res.status(401).json({ success: false, error: "Invalid or corrupted refresh token" });
+  }
 };
