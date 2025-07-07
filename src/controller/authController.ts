@@ -5,6 +5,7 @@ import { firebaseAdmin, verifyFirebaseToken } from "../config/firebase";
 import { formatToIndianNumber } from "../utils/lib";
 import JWT from 'jsonwebtoken'
 import { AuthPayload, AuthRequest } from "../types/custom";
+import MailService from "../services/Mail";
 
 // -- Admin Specifice Routes
 //Create Admin Seed
@@ -581,5 +582,239 @@ export const refreshSession = async (req: Request, res: Response): Promise<Respo
     }
     console.error("Refresh session error:", err.message);
     return res.status(401).json({ success: false, error: "Invalid or corrupted refresh token" });
+  }
+};
+
+
+export const userRegister = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  const { fullName, email, phone, dob, gender, termsAccepted, role } = req.body;
+
+  if (!email || !phone || !fullName || !termsAccepted) {
+    return res.status(400).json({
+      success: false,
+      message: "Required fields missing or terms not accepted",
+    });
+  }
+
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone }],
+      },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists with the given email or phone",
+      });
+    }
+
+    const newUser = await prisma.user.create({
+      data: {
+        fullName,
+        email,
+        phone,
+        dob,
+        gender,
+        termsAccepted: true,
+        termsAcceptedAt: new Date(),
+        lastLogin: new Date(),
+        emailVerified: false,
+        role,
+      },
+    });
+
+    const jwtPayload = {
+      id: newUser.id,
+      sub: newUser.uid,
+      phone: newUser.phone,
+      email: newUser.email,
+      name: newUser.fullName,
+      role: newUser.role,
+    };
+
+    const encryptedPayload = encryptRSA(jwtPayload);
+
+    const token = JWT.sign(
+      { data: encryptedPayload },
+      process.env.JWT_SECRET!,
+      {
+        algorithm: "HS256",
+        expiresIn: "1d",
+      }
+    );
+
+    const refreshToken = JWT.sign(
+      { data: encryptedPayload },
+      process.env.JWT_REFRESH_SECRET!,
+      {
+        algorithm: "HS256",
+        expiresIn: "7d",
+      }
+    );
+
+    const expiredAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await prisma.token.create({
+      data: {
+        userId: newUser.id,
+        token: refreshToken,
+        role: newUser.role,
+        type: "REFRESH",
+        expiredAt,
+      },
+    });
+
+    res.cookie("idToken", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    await MailService.sendToSingleUser(
+      newUser.email,
+      "Welcome to Nexa!",
+      `Hi ${newUser.fullName},\n\nWelcome to Nexa! We're glad to have you on board.`,
+      `<p>Hi <strong>${newUser.fullName}</strong>,</p><p>Welcome to <strong>Nexa</strong>! We're glad to have you on board.</p>`
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      user: {
+        name: newUser.fullName,
+        phone: newUser.phone,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
+  } catch (err: any) {
+    console.error("Registration Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+
+export const getUserProfile = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  const user = (req as AuthRequest)?.auth;
+
+  if (!user || !user.id) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: User not found in request context",
+    });
+  }
+
+  try {
+    const profile = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        uid: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        dob: true,
+        gender: true,
+        role: true,
+        emailVerified: true,
+        lastLogin: true,
+        termsAccepted: true,
+        termsAcceptedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!profile) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, user: profile });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+
+export const updateUserProfile = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  const user = (req as AuthRequest).auth;
+
+  if (!user || !user.id) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: User not found in request context",
+    });
+  }
+
+  const { fullName, phone, dob, gender } = req.body;
+
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!existingUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        fullName: fullName || existingUser.fullName,
+        phone: phone || existingUser.phone,
+        dob: dob ? new Date(dob) : existingUser.dob,
+        gender: gender || existingUser.gender,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        uid: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        dob: true,
+        gender: true,
+        role: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 };
