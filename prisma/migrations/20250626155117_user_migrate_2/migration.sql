@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "User" ALTER COLUMN "dob" DROP NOT NULL,
-ALTER COLUMN "gender" DROP NOT NULL;
