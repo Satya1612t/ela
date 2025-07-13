@@ -6,6 +6,8 @@ import { formatToIndianNumber } from "../utils/lib";
 import JWT from 'jsonwebtoken'
 import { AuthPayload, AuthRequest } from "../types/custom";
 import MailService from "../services/Mail";
+import { Role } from "@prisma/client";
+import { userRegisterSchema, updateUserProfileSchema } from "../zodSchema/user.schema";
 
 // -- Admin Specifice Routes
 //Create Admin Seed
@@ -590,41 +592,57 @@ export const userRegister = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
-  const { fullName, email, phone, dob, gender, termsAccepted, role } = req.body;
-
-  if (!email || !phone || !fullName || !termsAccepted) {
+  const parseResult = userRegisterSchema.safeParse(req.body);
+  if (!parseResult.success) {
     return res.status(400).json({
       success: false,
-      message: "Required fields missing or terms not accepted",
+      message: "Validation Error",
     });
   }
 
-  try {
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { phone }],
-      },
-    });
+  const { fullName, email, phone, city } = parseResult.data;
 
+  try {
+    let userRecord;
+    try {
+      userRecord = await firebaseAdmin.auth().createUser({
+        email,
+        phoneNumber: phone,
+        displayName: fullName,
+      });
+    } catch (err: any) {
+      if (err.code === "auth/phone-number-already-exists") {
+        userRecord = await firebaseAdmin.auth().getUserByPhoneNumber(phone);
+      } else if (err.code === "auth/email-already-exists") {
+        userRecord = await firebaseAdmin.auth().getUserByEmail(email);
+      } else {
+        throw new Error(`Firebase user creation failed: ${err.message}`);
+      }
+    }
+
+    const uid = userRecord.uid;
+
+    const existingUser = await prisma.user.findUnique({ where: { uid } });
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: "User already exists with the given email or phone",
+        message: "User already registered",
       });
     }
 
     const newUser = await prisma.user.create({
       data: {
+        uid,
         fullName,
         email,
         phone,
-        dob,
-        gender,
+        city,
         termsAccepted: true,
         termsAcceptedAt: new Date(),
         lastLogin: new Date(),
-        emailVerified: false,
-        role,
+        isActive: true,
+        emailVerified: userRecord.emailVerified ?? false,
+        role: Role.USER,
       },
     });
 
@@ -657,14 +675,13 @@ export const userRegister = async (
       }
     );
 
-    const expiredAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await prisma.token.create({
       data: {
         userId: newUser.id,
         token: refreshToken,
         role: newUser.role,
         type: "REFRESH",
-        expiredAt,
+        expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -710,107 +727,135 @@ export const userRegister = async (
 };
 
 
-export const getUserProfile = async (
+export const registerCoadmin = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
-  const user = (req as AuthRequest)?.auth;
-
-  if (!user || !user.id) {
-    return res.status(401).json({
+  const parseResult = userRegisterSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({
       success: false,
-      message: "Unauthorized: User not found in request context",
+      message: "Validation Error",
     });
   }
+
+  const { fullName, email, phone, city } = parseResult.data;
 
   try {
-    const profile = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        uid: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        dob: true,
-        gender: true,
-        role: true,
-        emailVerified: true,
-        lastLogin: true,
-        termsAccepted: true,
-        termsAcceptedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!profile) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    let userRecord;
+    try {
+      userRecord = await firebaseAdmin.auth().createUser({
+        email,
+        phoneNumber: phone,
+        displayName: fullName,
+      });
+    } catch (err: any) {
+      if (err.code === "auth/phone-number-already-exists") {
+        userRecord = await firebaseAdmin.auth().getUserByPhoneNumber(phone);
+      } else if (err.code === "auth/email-already-exists") {
+        userRecord = await firebaseAdmin.auth().getUserByEmail(email);
+      } else {
+        throw new Error(`Firebase user creation failed: ${err.message}`);
+      }
     }
 
-    return res.status(200).json({ success: true, user: profile });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-};
+    const uid = userRecord.uid;
 
-
-export const updateUserProfile = async (
-  req: Request,
-  res: Response
-): Promise<Response | void> => {
-  const user = (req as AuthRequest).auth;
-
-  if (!user || !user.id) {
-    return res.status(401).json({
-      success: false,
-      message: "Unauthorized: User not found in request context",
-    });
-  }
-
-  const { fullName, phone, dob, gender } = req.body;
-
-  try {
-    const existingUser = await prisma.user.findUnique({
-      where: { id: user.id },
-    });
-
-    if (!existingUser) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    const existingUser = await prisma.user.findUnique({ where: { uid } });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already registered",
+      });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
+    const newUser = await prisma.user.create({
       data: {
-        fullName: fullName || existingUser.fullName,
-        phone: phone || existingUser.phone,
-        dob: dob ? new Date(dob) : existingUser.dob,
-        gender: gender || existingUser.gender,
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        uid: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        dob: true,
-        gender: true,
-        role: true,
-        updatedAt: true,
+        uid,
+        fullName,
+        email,
+        phone,
+        city,
+        isActive: true,
+        termsAccepted: true,
+        termsAcceptedAt: new Date(),
+        lastLogin: new Date(),
+        emailVerified: userRecord.emailVerified ?? false,
+        role: Role.COADMIN,
       },
     });
 
-    return res.status(200).json({
+    const jwtPayload = {
+      id: newUser.id,
+      sub: newUser.uid,
+      phone: newUser.phone,
+      email: newUser.email,
+      name: newUser.fullName,
+      role: newUser.role,
+    };
+
+    const encryptedPayload = encryptRSA(jwtPayload);
+
+    const token = JWT.sign(
+      { data: encryptedPayload },
+      process.env.JWT_SECRET!,
+      {
+        algorithm: "HS256",
+        expiresIn: "1d",
+      }
+    );
+
+    const refreshToken = JWT.sign(
+      { data: encryptedPayload },
+      process.env.JWT_REFRESH_SECRET!,
+      {
+        algorithm: "HS256",
+        expiresIn: "7d",
+      }
+    );
+
+    await prisma.token.create({
+      data: {
+        userId: newUser.id,
+        token: refreshToken,
+        role: newUser.role,
+        type: "REFRESH",
+        expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    res.cookie("idToken", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    await MailService.sendToSingleUser(
+      newUser.email,
+      "Welcome to Nexa (COADMIN)",
+      `<p>Hi <strong>${newUser.fullName}</strong>,</p><p>Your co-admin account has been created successfully on <strong>Nexa</strong>.</p>`
+    );
+
+    return res.status(201).json({
       success: true,
-      message: "User profile updated successfully",
-      user: updatedUser,
+      message: "Coadmin registered successfully",
+      user: {
+        name: newUser.fullName,
+        phone: newUser.phone,
+        email: newUser.email,
+        role: newUser.role,
+      },
     });
   } catch (err: any) {
+    console.error("Coadmin Registration Error:", err.message);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -818,3 +863,115 @@ export const updateUserProfile = async (
     });
   }
 };
+
+
+// export const getUserProfile = async (
+//   req: Request,
+//   res: Response
+// ): Promise<Response | void> => {
+//   const user = (req as AuthRequest)?.auth;
+
+//   if (!user || !user.id) {
+//     return res.status(401).json({
+//       success: false,
+//       message: "Unauthorized: User not found in request context",
+//     });
+//   }
+
+//   try {
+//     const profile = await prisma.user.findUnique({
+//       where: { id: user.id },
+//       select: {
+//         fullName: true,
+//         email: true,
+//         phone: true,
+//         dob: true,
+//         gender: true,
+//         role: true,
+//         emailVerified: true,
+//       },
+//     });
+
+//     if (!profile) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found" });
+//     }
+
+//     return res.status(200).json({ success: true, user: profile });
+//   } catch (err: any) {
+//     return res.status(500).json({ success: false, error: err.message });
+//   }
+// };
+
+
+// export const updateUserProfile = async (
+//   req: Request,
+//   res: Response
+// ): Promise<Response | void> => {
+//   const user = (req as AuthRequest).auth;
+
+//   if (!user || !user.id) {
+//     return res.status(401).json({
+//       success: false,
+//       message: "Unauthorized: User not found in request context",
+//     });
+//   }
+
+//   const parsed = updateUserProfileSchema.safeParse(req.body);
+//   if (!parsed.success) {
+//     return res.status(400).json({
+//       success: false,
+//       message: "Validation failed",
+//     });
+//   }
+
+//   const { fullName, phone, dob, gender, city } = parsed.data;
+
+//   try {
+//     const existingUser = await prisma.user.findUnique({
+//       where: { id: user.id },
+//     });
+
+//     if (!existingUser) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     const updatedUser = await prisma.user.update({
+//       where: { id: user.id },
+//       data: {
+//         fullName: fullName ?? existingUser.fullName,
+//         phone: phone ?? existingUser.phone,
+//         dob: dob ? new Date(dob) : existingUser.dob,
+//         gender: gender ?? existingUser.gender,
+//         city: city ?? existingUser.city,
+//         updatedAt: new Date(),
+//       },
+//       select: {
+//         fullName: true,
+//         email: true,
+//         phone: true,
+//         dob: true,
+//         gender: true,
+//         city: true,
+//         role: true,
+//       },
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "User profile updated successfully",
+//       user: updatedUser,
+//     });
+//   } catch (err: any) {
+//     console.error("Update error:", err.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: err.message,
+//     });
+//   }
+// };
