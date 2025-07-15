@@ -35,6 +35,7 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.4",
     "pg-sdk-node": "https://phonepe.mycloudrepo.io/public/repositories/phonepe-pg-sdk-node/releases/v2/phonepe-pg-sdk-node.tgz",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^4.0.5"
   }
 }

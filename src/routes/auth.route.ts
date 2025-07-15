@@ -8,9 +8,10 @@ import {
   validateAdmin,
   validateUser,
   userRegister,
-  getUserProfile,
-  updateUserProfile,
-} from "../controller/authController";
+//   getUserProfile,
+//   updateUserProfile,
+  registerCoadmin,
+} from "../controller/auth.controller";
 import { authenticate } from "../middleware/authMiddleware";
 import { authorize } from "../middleware/authorize";
 
@@ -30,14 +31,14 @@ router.get('/session', asyncHandler(authSession));
 
 // --- Profile Related
 router.post("/user/register", asyncHandler(userRegister));
-router.get("/user/get-profile", asyncHandler(getUserProfile));
-router.put("/user/update-profile", asyncHandler(updateUserProfile));
+// router.get("/user/get-profile", asyncHandler(getUserProfile));
+// router.put("/user/update-profile", asyncHandler(updateUserProfile));
 
 // --- Admin Related
 
 // --- CoAdmin Related
 router.use(authorize("ADMIN"));
-router.post("/coadmin/register", asyncHandler(userRegister));
+router.post("/coadmin/register", asyncHandler(registerCoadmin));
 
 router.post('/logout', asyncHandler(logout));
 
