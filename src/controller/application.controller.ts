@@ -3,6 +3,7 @@ import { prisma } from "../config/db";
 import {
   applicationSchema,
   updateApplicationSchema,
+  applicationUpdateSchema
 } from "../zodSchema/application.schema";
 import { AuthRequest } from "../types/custom";
 import { generateTicketNumber } from "../utils/ticketGenerator";
@@ -351,6 +352,135 @@ export const getUserApplications = async (
     });
   } catch (err: any) {
     console.error("Get User Applications Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+
+export const createApplicationUpdate = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  const applicationId = req.params.id;
+
+  const parsed = applicationUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Validation failed",
+    });
+  }
+
+  const { message } = parsed.data;
+
+  try {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!application || !application.user) {
+      return res.status(404).json({
+        success: false,
+        message: "Application or associated user not found",
+      });
+    }
+
+    const updaterName = application.user.fullName;
+
+    const newUpdate = await prisma.applicationUpdate.create({
+      data: {
+        applicationId,
+        updaterBy: updaterName,
+        message,
+        createdAt: new Date(),
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Update added successfully",
+      update: newUpdate,
+    });
+  } catch (err: any) {
+    console.error("Create Update Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+
+export const getApplicationUpdates = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  const applicationId = req.params.id;
+  const user = (req as AuthRequest).auth;
+
+  if (!applicationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Application ID is required in the URL",
+    });
+  }
+
+  if (!user || !user.id) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: User not authenticated",
+    });
+  }
+
+  try {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found",
+      });
+    }
+
+    if (application.userId !== user.id && user.role === "USER") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You are not authorized to view these updates",
+      });
+    }
+
+    const updates = await prisma.applicationUpdate.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        updater: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Application updates fetched successfully",
+      updates,
+    });
+  } catch (err: any) {
+    console.error("Get Application Updates Error:", err.message);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

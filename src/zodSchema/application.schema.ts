@@ -12,3 +12,7 @@ export const updateApplicationSchema = z.object({
   objectionReason: z.string().optional(),
   autoCloseAt: z.string().datetime().optional(),
 });
+
+export const applicationUpdateSchema = z.object({
+  message: z.string().min(1, "Update message is required"),
+});
