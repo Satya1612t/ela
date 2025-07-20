@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { isUuid } from 'uuidv4'; // or use 'validator' if you're using that package
+import { v4 as uuidv4 } from 'uuid';
 import { prisma } from "../config/db";
 import {
   applicationSchema,
@@ -6,7 +8,10 @@ import {
   applicationUpdateSchema
 } from "../zodSchema/application.schema";
 import { AuthRequest } from "../types/custom";
+import { Decimal } from '@prisma/client/runtime/library';
 import { generateTicketNumber } from "../utils/ticketGenerator";
+import PhonePe from "../services/PhonePe";
+import { logger } from "../utils/logger";
 
 
 export const createApplication = async (
@@ -80,6 +85,88 @@ export const createApplication = async (
       message: "Internal Server Error",
       error: err.message,
     });
+  }
+};
+
+// Newly Added For Initiate Payment
+export const initiatePayment = async (req: Request, res: Response) => {
+  // const { applicationId } = req.params;
+  const { paymentMethodCode, amount, applicationId, paymentType } = req.body;
+  const user = (req as AuthRequest)?.auth;
+
+  // update according to Zod
+  if (!isUuid(applicationId)) {
+    return res.status(400).json({ message: 'Invalid application ID format' });
+  }
+
+  if (!amount || isNaN(amount)) {
+    return res.status(400).json({ message: 'Invalid or missing amount' });
+  }
+
+  try {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+    });
+
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    if (application.userId !== user?.id && application.id !== applicationId) {
+      return res.status(403).json({ message: 'Unauthorized access or Incorrect Application Details' });
+    }
+
+    const method = await prisma.paymentMethod.findUnique({
+      where: { code: paymentMethodCode }
+    });
+
+    if (!method) {
+      return res.status(400).json({ message: 'Invalid payment method' });
+    }
+
+    const amountInRupee = new Decimal(amount);
+    const amountInPaise = amountInRupee.mul(100).toNumber();
+    
+    const transactionId = uuidv4(); // Secure transaction ID
+
+    const transaction = await prisma.payment.create({
+      data: {
+        applicationId,
+        serviceId: application.serviceId,
+        paymentMethod: method.code,
+        amount: amountInRupee,
+        purpose: 'SERVICE_PAYMENT',
+        paymentType,
+        transactionId,
+      }
+    });
+
+    const redirectUrl = `http://localhost:5173/payment-response?applicationId=${transactionId}`;
+
+    const phonepeResponse: any = await PhonePe.initiatePayment(
+      amountInPaise,
+      transactionId,
+      redirectUrl
+    );
+
+    await prisma.payment.update({
+      where: { id: transaction.id }, 
+      data: {
+        paymentGatewayResponse: phonepeResponse,
+        transactionId: phonepeResponse.orderId,
+        expiresAt: new Date(phonepeResponse.expireAt)
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment initiated successfully',
+      redirectUrl: phonepeResponse.redirectUrl
+    });
+
+  } catch (error) {
+    logger.error('PhonePe Payment Initiation Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 

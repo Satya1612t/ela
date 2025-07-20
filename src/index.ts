@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from './config/db';
 import express, { Express, Request, Response } from "express";
 import cookieParser from "cookie-parser";
+import PhonePeRoutes  from './routes/phonepe.route'
 import helmet from 'helmet';
 import { configCors } from './config/cors';
 import { requestLogger } from './utils/logger';
@@ -26,6 +27,8 @@ const APP: Express = express();
 
 
 APP.use(requestLogger)
+
+APP.use('/api/v1', PhonePeRoutes);
 
 APP.use(helmet());
 APP.use(configCors());
