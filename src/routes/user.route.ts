@@ -5,14 +5,14 @@ import { authenticate } from "../middleware/authMiddleware";
 import { authorize } from "../middleware/authorize";
 import { getAllUsers, getUserById, updateUser } from "../controller/user.controller";
 
-const router = express.Router();
+const userRouter = express.Router();
 
-router.use(authenticate);
-router.put("/user/update", asyncHandler(updateUser));
-// router.delete("/user/:id", asyncHandler(deleteUser));
+userRouter.use(authenticate);
+userRouter.put("/update", asyncHandler(updateUser));
+// userRouter.delete("/user/:id", asyncHandler(deleteUser));
 
-router.use(authorize("ADMIN","COADMIN"));
-router.get("/user/getallusers", asyncHandler(getAllUsers));
-router.get("/user/:id", asyncHandler(getUserById));
+userRouter.use(authorize("ADMIN","COADMIN"));
+userRouter.get("/getallusers", asyncHandler(getAllUsers));
+userRouter.get("/:id", asyncHandler(getUserById));
 
-export default router;
+export default userRouter;

@@ -5,6 +5,11 @@ import cookieParser from "cookie-parser";
 import helmet from 'helmet';
 import { configCors } from './config/cors';
 import { requestLogger } from './utils/logger';
+import authRouter from './routes/auth.route';
+import applicationRouter from './routes/application.route';
+import serviceRouter from './routes/service.route';
+import userRouter from './routes/user.route';
+import queryRouter from './routes/query.route';
 
 const PORT = process.env.PORT || 4001;
 
@@ -33,6 +38,12 @@ APP.use(cookieParser());
 
 APP.use(express.json());
 APP.use(express.urlencoded({ extended: true }));
+
+APP.use("/auth", authRouter);
+APP.use("/application", applicationRouter);
+APP.use("/service", serviceRouter);
+APP.use("/user", userRouter);
+APP.use("/query", queryRouter);
 
 APP.get('/api/appCheck', async (req: Request, res: any) => {
   res.status(200).json({
