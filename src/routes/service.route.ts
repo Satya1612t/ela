@@ -10,16 +10,16 @@ import {
   getAllServices,
 } from "../controller/service.controller";
 
-const router = express.Router();
+const serviceRouter = express.Router();
 
-router.use(authenticate);
-router.get("/service/:id", asyncHandler(getService));
-router.get("/services", asyncHandler(getAllServices));
+serviceRouter.use(authenticate);
+serviceRouter.get("/services", asyncHandler(getAllServices));
+serviceRouter.get("/:id", asyncHandler(getService));
 
-router.use(authorize("ADMIN","COADMIN"));
-router.post("/service/create", asyncHandler(createService));
-router.put("/service/:id", asyncHandler(updateService));
-router.delete("/service/:id", asyncHandler(deleteService));
+serviceRouter.use(authorize("ADMIN","COADMIN"));
+serviceRouter.post("/create", asyncHandler(createService));
+serviceRouter.put("/:id", asyncHandler(updateService));
+serviceRouter.delete("/:id", asyncHandler(deleteService));
 
 
-export default router;
+export default serviceRouter;

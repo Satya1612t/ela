@@ -2,7 +2,6 @@ import { z } from "zod";
 import { ApplicationStatus } from "@prisma/client";
 
 export const applicationSchema = z.object({
-  ticketNo: z.string().min(1, "Ticket number is required"),
   serviceId: z.string().uuid({ message: "Invalid service ID" }),
   ServiceName: z.string().optional(),
 });

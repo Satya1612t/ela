@@ -479,12 +479,12 @@ export const createApplicationUpdate = async (
       });
     }
 
-    const updaterName = application.user.fullName;
+    const updaterId = application.user.id;
 
     const newUpdate = await prisma.applicationUpdate.create({
       data: {
         applicationId,
-        updaterBy: updaterName,
+        updaterBy: updaterId,
         message,
         createdAt: new Date(),
       },

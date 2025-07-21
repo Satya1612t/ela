@@ -86,7 +86,7 @@ export const localhost = async (req: Request, res: Response): Promise<Response |
             where: {
                 phone,
                 // uid, // For Production
-                role: { in: ["ADMIN", "COADMIN"] }, // GlobalRole enum
+                role: { in: ["ADMIN", "COADMIN", "USER"] }, // GlobalRole enum
             },
         });
 
