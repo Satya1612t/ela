@@ -47,7 +47,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
       statusCode: res.statusCode,
       responseTime: `${elapsedMs}ms`,
       ip: req.ip,
-      userAgent: req.headers["user-agent"],
+      // userAgent: req.headers["user-agent"],
       contentLength: res.get("Content-Length") || 0,
     };
 

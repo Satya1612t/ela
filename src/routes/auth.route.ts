@@ -17,7 +17,7 @@ import { authorize } from "../middleware/authorize";
 
 const authRouter = express.Router();
 
-authRouter.post('/validate', asyncHandler(localhost));
+authRouter.post('/validate', asyncHandler(localhost)); 
 
 authRouter.post('/admin/login', asyncHandler(validateAdmin));
 authRouter.post('/user/login', asyncHandler(validateUser));
@@ -28,6 +28,7 @@ authRouter.post("/user/register", asyncHandler(userRegister));
 authRouter.use(authenticate);
 
 authRouter.get('/session', asyncHandler(authSession));
+authRouter.post('/logout', asyncHandler(logout));
 
 
 // --- Profile Related
@@ -40,6 +41,5 @@ authRouter.get('/session', asyncHandler(authSession));
 authRouter.use(authorize("ADMIN"));
 authRouter.post("/coadmin/register", asyncHandler(registerCoadmin));
 
-authRouter.post('/logout', asyncHandler(logout));
 
 export default authRouter;

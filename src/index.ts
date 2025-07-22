@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from './config/db';
 import express, { Express, Request, Response } from "express";
 import cookieParser from "cookie-parser";
+// import cors from 'cors';
 import PhonePeRoutes  from './routes/phonepe.route'
 import helmet from 'helmet';
 import { configCors } from './config/cors';
@@ -11,6 +12,7 @@ import applicationRouter from './routes/application.route';
 import serviceRouter from './routes/service.route';
 import userRouter from './routes/user.route';
 import queryRouter from './routes/query.route';
+import notificationRouter from './routes/notification.route';
 
 const PORT = process.env.PORT || 4001;
 
@@ -37,6 +39,7 @@ APP.use('/api/v1', PhonePeRoutes);
 
 APP.use(helmet());
 APP.use(configCors());
+// APP.use(cors());
 APP.use(cookieParser());
 
 APP.use(express.json());
@@ -44,6 +47,7 @@ APP.use(express.urlencoded({ extended: true }));
 
 APP.use("/auth", authRouter);
 APP.use("/application", applicationRouter);
+APP.use("/notification", notificationRouter);
 APP.use("/service", serviceRouter);
 APP.use("/user", userRouter);
 APP.use("/query", queryRouter);
