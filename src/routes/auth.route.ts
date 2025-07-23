@@ -15,31 +15,31 @@ import {
 import { authenticate } from "../middleware/authMiddleware";
 import { authorize } from "../middleware/authorize";
 
-const router = express.Router();
+const authRouter = express.Router();
 
-router.post('/validate', asyncHandler(localhost));
+authRouter.post('/validate', asyncHandler(localhost)); 
 
-router.post('/admin/login', asyncHandler(validateAdmin));
-router.post('/user/login', asyncHandler(validateUser));
+authRouter.post('/admin/login', asyncHandler(validateAdmin));
+authRouter.post('/user/login', asyncHandler(validateUser));
 
-router.post('/refresh', asyncHandler(refreshSession));
+authRouter.post('/refresh', asyncHandler(refreshSession));
+authRouter.post("/user/register", asyncHandler(userRegister));
 
-router.use(authenticate);
+authRouter.use(authenticate);
 
-router.get('/session', asyncHandler(authSession));
+authRouter.get('/session', asyncHandler(authSession));
+authRouter.post('/logout', asyncHandler(logout));
 
 
 // --- Profile Related
-router.post("/user/register", asyncHandler(userRegister));
-// router.get("/user/get-profile", asyncHandler(getUserProfile));
-// router.put("/user/update-profile", asyncHandler(updateUserProfile));
+// authRouter.get("/user/get-profile", asyncHandler(getUserProfile));
+// authRouter.put("/user/update-profile", asyncHandler(updateUserProfile));
 
 // --- Admin Related
 
 // --- CoAdmin Related
-router.use(authorize("ADMIN"));
-router.post("/coadmin/register", asyncHandler(registerCoadmin));
+authRouter.use(authorize("ADMIN"));
+authRouter.post("/coadmin/register", asyncHandler(registerCoadmin));
 
-router.post('/logout', asyncHandler(logout));
 
-export default router;
+export default authRouter;

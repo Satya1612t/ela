@@ -131,7 +131,7 @@ model Payment {
   amount                 Decimal
   paymentGatewayResponse Json?
   purpose                String
-  paymentType            PaymentType
+  paymentType            PaymentType?
   status                 PaymentStatus @default(PENDING)
   transactionId          String        @unique
   parentTransactionId    String?       @db.Uuid

@@ -2,19 +2,22 @@ import express from "express";
 import { asyncHandler } from "../utils/lib";
 import { authenticate } from "../middleware/authMiddleware";
 import { authorize } from "../middleware/authorize";
-import { createApplication, deleteApplication, getAllApplications, getApplicationById, getUserApplications, updateApplication } from "../controller/application.controller";
+import { createApplication, initiatePayment, createApplicationUpdate, deleteApplication, getAllApplications, getApplicationById, getApplicationUpdates, getUserApplications, updateApplication } from "../controller/application.controller";
 
-const router = express.Router();
+const applicationRouter = express.Router();
 
-router.use(authenticate);
-router.post("/application/create", asyncHandler(createApplication));
-router.get("/application/:id", asyncHandler(getApplicationById));
-router.get("/application/user-applications", asyncHandler(getUserApplications));
+applicationRouter.use(authenticate);
+applicationRouter.post("/create", asyncHandler(createApplication));
+applicationRouter.post('/pay', asyncHandler(initiatePayment));
+applicationRouter.get("/userapplications", asyncHandler(getUserApplications));
+applicationRouter.get("/getapplication/:id", asyncHandler(getApplicationById));
+applicationRouter.get("/updates/:id", asyncHandler(getApplicationUpdates));
 
-router.use(authorize("ADMIN","COADMIN"));
-router.put("/application/:id", asyncHandler(updateApplication));
-router.delete("/application/:id", asyncHandler(deleteApplication));
-router.get("/application/all-applications", asyncHandler(getAllApplications));
+applicationRouter.use(authorize("ADMIN","COADMIN"));
 
+applicationRouter.get("/allapplications", asyncHandler(getAllApplications));
+applicationRouter.put("/updateapplication/:id", asyncHandler(updateApplication));
+applicationRouter.delete("/deleteapplication/:id", asyncHandler(deleteApplication));
+applicationRouter.post("/updates/:id", asyncHandler(createApplicationUpdate));
 
-export default router;
+export default applicationRouter;

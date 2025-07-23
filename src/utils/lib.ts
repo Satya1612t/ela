@@ -27,3 +27,21 @@ export function formatToIndianNumber(phone: string): string {
     // Default fallback (return as-is)
     return phone;
 }
+
+export function getTokenFromHeader(req: Request): string | null {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+
+  return null; // No valid token found
+}
+
+
+ export function calculateDiscountPercent(originalPrice: number, discountPrice: number): string {
+    if (originalPrice <= 0) return "Invalid original price";
+
+    const discount = ((originalPrice - discountPrice) / originalPrice) * 100;
+    return discount.toFixed(2);
+  }

@@ -20,14 +20,15 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.3",
     "@types/nodemailer": "^6.4.17",
-    "prisma": "^6.10.1",
+    "prisma": "^6.12.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@prisma/client": "^6.10.1",
+    "@prisma/client": "^6.12.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "firebase-admin": "^13.4.0",
@@ -35,6 +36,7 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.4",
     "pg-sdk-node": "https://phonepe.mycloudrepo.io/public/repositories/phonepe-pg-sdk-node/releases/v2/phonepe-pg-sdk-node.tgz",
+    "uuidv4": "^6.2.13",
     "winston": "^3.17.0",
     "zod": "^4.0.5"
   }
