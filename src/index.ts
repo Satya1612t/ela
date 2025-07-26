@@ -13,6 +13,7 @@ import serviceRouter from './routes/service.route';
 import userRouter from './routes/user.route';
 import queryRouter from './routes/query.route';
 import notificationRouter from './routes/notification.route';
+import dashboardRouter from './routes/dashboard.route';
 
 const PORT = process.env.PORT || 4001;
 
@@ -51,6 +52,7 @@ APP.use("/notification", notificationRouter);
 APP.use("/service", serviceRouter);
 APP.use("/user", userRouter);
 APP.use("/query", queryRouter);
+APP.use("/admin/analytics", dashboardRouter);
 
 APP.get('/api/appCheck', async (req: Request, res: any) => {
   res.status(200).json({
